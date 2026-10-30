@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="morning" data-font-size="md">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>男子漢學習島嶼｜跟著男子漢一起來學習</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='50' font-size='48'>🏝️</text></svg>" />
+  <meta name="description" content="男子漢學習島嶼：一課一座島，讀教材、填學習單、做隨堂測驗，中央島是好孩子校本館總複習與男子漢品牌圖書館。" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" media="print" onload="this.media='all'" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./js/vendor/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- 3D 群島舞台與浮動標籤 -->
+  <div id="stage-wrap" aria-label="男子漢學習島嶼 3D 互動場景">
+    <canvas id="webgl-canvas" tabindex="0" aria-label="3D 群島畫布，可拖曳旋轉、滾輪縮放或點選島嶼"></canvas>
+    <div id="labels-layer"></div>
+  </div>
+
+  <!-- 居民與動物對話泡泡（獨立頂層，不與頂部工具列重疊） -->
+  <div id="npc-bubble" role="dialog" aria-live="polite" hidden>
+    <div class="bubble-header">
+      <div class="bubble-who">
+        <span class="bubble-name" id="bubble-name">島民</span>
+        <span class="bubble-meta" id="bubble-meta">好孩子校本館</span>
+      </div>
+      <button type="button" class="btn btn-sm" id="bubble-close-btn" aria-label="關閉對話">✕</button>
+    </div>
+    <div class="bubble-text" id="bubble-text">歡迎來到男子漢學習島嶼！</div>
+    <div class="bubble-trade-box" id="bubble-trade-box" hidden></div>
+    <div class="bubble-actions">
+      <button type="button" class="btn btn-sm" id="bubble-next-btn">💬 再聊聊</button>
+      <button type="button" class="btn btn-sm btn-accent" id="bubble-trade-btn" hidden>🔁 交易</button>
+      <button type="button" class="btn btn-sm" id="bubble-dismiss-btn">✕ 關閉</button>
+    </div>
+  </div>
+
+  <!-- 電影史詩開場覆蓋層（點畫面或按 Esc 立即跳過） -->
+  <div id="cinema-overlay" role="button" tabindex="0" aria-label="電影開場運鏡中，點擊畫面或按 Esc 可立即跳過" hidden>
+    <div class="cinema-title-card">
+      <h2>🏝️ 男子漢學習島嶼</h2>
+      <p>跟著男子漢一起來學習｜好孩子校本館 × 九大學科群島</p>
+    </div>
+    <button type="button" class="btn btn-primary" id="skip-cinema-btn">⏭️ 點擊畫面或按 Esc 跳過開場</button>
+  </div>
+
+  <!-- 頂部工具列 -->
+  <header id="top-hud">
+    <div class="hud-card brand-block">
+      <!-- 吉祥物：小硬漢（戴著眼鏡的Q版男老師 SVG） -->
+      <button type="button" class="mascot-avatar" id="mascot-btn" title="點我呼叫小硬漢老師問答導覽！" aria-label="小硬漢老師導覽">
+        <svg width="34" height="34" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="34" r="22" fill="#f7c8a0" stroke="#1f2937" stroke-width="2.5"/>
+          <path d="M12 28 C12 12, 52 12, 52 28 C46 20, 18 20, 12 28 Z" fill="#2c3e50"/>
+          <rect x="14" y="28" width="15" height="11" rx="3" fill="#ffffff" stroke="#1f2937" stroke-width="3"/>
+          <rect x="35" y="28" width="15" height="11" rx="3" fill="#ffffff" stroke="#1f2937" stroke-width="3"/>
+          <line x1="29" y1="33" x2="35" y2="33" stroke="#1f2937" stroke-width="3"/>
+          <circle cx="21.5" cy="33.5" r="2.5" fill="#1f2937"/>
+          <circle cx="42.5" cy="33.5" r="2.5" fill="#1f2937"/>
+          <path d="M25 45 Q32 51 39 45" fill="none" stroke="#b91c1c" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="brand-titles">
+        <h1 id="site-title">男子漢學習島嶼</h1>
+        <p id="site-tagline">跟著男子漢一起來學習 · 男子漢/好孩子國民小學</p>
+      </div>
+      <span class="badge" id="progress-badge" title="已探索島嶼進度">進度 0/10</span>
+    </div>
+
+    <div class="hud-card toolbar-group">
+      <div class="search-box">
+        <input type="search" id="search-input" placeholder="🔍 搜尋島嶼或概念…" aria-label="搜尋島嶼與學習內容" autocomplete="off" />
+        <div id="search-results" hidden></div>
+      </div>
+      <button type="button" class="btn btn-sm" id="btn-list" title="打開全站島嶼與居民文字清單">📋 地點清單</button>
+      <button type="button" class="btn btn-sm btn-accent" id="btn-library" title="打開中央島【男子漢品牌圖書館】">🏛️ 品牌圖書館</button>
+      <button type="button" class="btn btn-sm" id="btn-overview" title="鏡頭回到群島全景">🗺️ 回到全景</button>
+      <button type="button" class="btn btn-sm" id="btn-font-size" title="切換全站字體大小（小／標準／大／特大）">🔠 字級：標準</button>
+      <button type="button" class="btn btn-sm" id="btn-replay-cinema" title="重播電影史詩開場運鏡">🎬 重播開場</button>
+      <button type="button" class="btn btn-sm" id="btn-help" title="網站操作說明與資料來源">❓ 說明</button>
+    </div>
+  </header>
+
+  <!-- 側邊內容面板（桌機右側，手機底部抽屜） -->
+  <aside id="island-panel" aria-label="島嶼課程內容面板" hidden>
+    <div class="panel-header">
+      <div class="panel-title-wrap">
+        <div class="panel-badges" id="panel-badges"></div>
+        <h2 id="panel-title">島嶼名稱</h2>
+        <div id="panel-subtitle" style="font-size:0.88rem;color:var(--muted);"></div>
+      </div>
+      <button type="button" class="btn btn-sm" id="panel-close-btn" aria-label="關閉面板 (Esc)">✕ 關閉</button>
+    </div>
+    <nav class="panel-tabs" id="panel-tabs" aria-label="課程分頁切換"></nav>
+    <div class="panel-body" id="panel-body"></div>
+  </aside>
+
+  <!-- 底部控制列（底色主題、晝夜時段、生活感背包、鑰匙、圖鑑、問答、證書） -->
+  <footer id="bottom-hud">
+    <div class="hud-card theme-switcher" role="group" aria-label="底色主題切換">
+      <button type="button" class="btn btn-sm is-active" data-theme-btn="auto" title="依日夜時段自動切換底色">🌅 自動</button>
+      <button type="button" class="btn btn-sm" data-theme-btn="morning" title="晨光底色 (#f6f0e4)">
+        <span class="swatch-dot" style="background:#f6f0e4;"></span> 晨光
+      </button>
+      <button type="button" class="btn btn-sm" data-theme-btn="mist" title="海霧底色 (#dcebee)">
+        <span class="swatch-dot" style="background:#dcebee;"></span> 海霧
+      </button>
+      <button type="button" class="btn btn-sm" data-theme-btn="night" title="夜海底色 (#16222e)">
+        <span class="swatch-dot" style="background:#16222e;"></span> 夜海
+      </button>
+    </div>
+
+    <div class="hud-card time-switcher" role="group" aria-label="晝夜光線與時間切換">
+      <button type="button" class="btn btn-sm" data-time-btn="day">☀️ 白天</button>
+      <button type="button" class="btn btn-sm" data-time-btn="dusk">🌇 黃昏</button>
+      <button type="button" class="btn btn-sm" data-time-btn="night">🌙 夜晚</button>
+      <button type="button" class="btn btn-sm is-active" data-time-btn="auto" title="約 2.5 分鐘自動循環一天">⏱ 自動</button>
+      <button type="button" class="btn btn-sm" data-time-btn="realtime" title="跟現在電腦時間同步">🕒 同步</button>
+      <span class="badge" id="clock-readout" aria-live="off">☀️ 白天 09:00</span>
+    </div>
+
+    <div class="hud-card utility-bar">
+      <button type="button" class="btn btn-sm" id="btn-backpack" title="查看背包與交換鏈">🎒 背包 <span id="shell-count">🐚3</span></button>
+      <button type="button" class="btn btn-sm" id="btn-daily-key" title="使用每日鑰匙開啟知識寶箱">🔑 鑰匙 <span id="key-count">3/3</span></button>
+      <button type="button" class="btn btn-sm" id="btn-collection" title="查看收集圖鑑">🃏 圖鑑 <span id="card-count">0/10</span></button>
+      <button type="button" class="btn btn-sm" id="btn-guide" title="小硬漢問答助教">🤖 問答</button>
+      <button type="button" class="btn btn-sm" id="btn-music" title="播放或關閉背景音樂">🎵 音樂：關</button>
+      <button type="button" class="btn btn-sm" id="btn-motion" title="切換減少動態模式">🐢 減少動態：關</button>
+      <button type="button" class="btn btn-sm" id="btn-quality" title="切換 3D 畫質（高／低）">✨ 畫質：高</button>
+      <button type="button" class="btn btn-sm" id="btn-certificate" title="下載或列印學習完成證書">🏅 證書</button>
+      <button type="button" class="btn btn-sm" id="btn-savecode" title="複製或貼上接關碼">💾 接關碼</button>
+      <button type="button" class="btn btn-sm" id="btn-share" title="產生分享卡片">📤 分享</button>
+    </div>
+  </footer>
+
+  <!-- 通用模態視窗 -->
+  <div class="modal-backdrop" id="app-modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="modal-title">標題</h2>
+        <button type="button" class="btn btn-sm" id="modal-close-btn" aria-label="關閉視窗">✕ 關閉</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
